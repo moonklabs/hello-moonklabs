@@ -1,3 +1,5 @@
+[Read in Korean (한국어로 보기)](README.ko.md)
+
 # hello-moonklabs
 
 This project is an updated version of [Simone](https://github.com/Helmi/claude-simone).
