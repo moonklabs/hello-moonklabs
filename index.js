@@ -75,13 +75,40 @@ async function checkExistingInstallation() {
     return moonklabsExists || claudeCommandsExists;
 }
 
-async function backupFile(filePath) {
+// 백업 폴더명 생성 함수
+function getBackupDirName() {
+    const now = new Date();
+    const pad = n => n.toString().padStart(2, '0');
+    const y = now.getFullYear();
+    const m = pad(now.getMonth() + 1);
+    const d = pad(now.getDate());
+    const h = pad(now.getHours());
+    const min = pad(now.getMinutes());
+    const s = pad(now.getSeconds());
+    return `.moonklabs/backup_${y}${m}${d}_${h}${min}${s}`;
+}
+
+let BACKUP_DIR = null;
+
+async function backupFile(filePath, backupDir) {
     try {
         const exists = await fs.access(filePath).then(() => true).catch(() => false);
         if (exists) {
+            await fs.mkdir(backupDir, { recursive: true });
             const backupPath = `${filePath}.bak`;
             await fs.copyFile(filePath, backupPath);
-            return backupPath;
+            // 상대경로 보존: .claude/commands/moonklabs/foo.md -> backupDir/claude-commands-moonklabs-foo.md.bak
+            let bakFileName;
+            if (filePath.startsWith('.claude/commands/moonklabs/')) {
+                bakFileName = filePath.replace(/\//g, '-').replace(/^\./, '') + '.bak';
+            } else if (filePath.startsWith('.moonklabs/')) {
+                bakFileName = filePath.replace(/\//g, '-').replace(/^\./, '') + '.bak';
+            } else {
+                bakFileName = path.basename(filePath) + '.bak';
+            }
+            const destPath = path.join(backupDir, bakFileName);
+            await fs.rename(backupPath, destPath);
+            return destPath;
         }
     } catch (error) {
         // Backup failed, but continue
@@ -90,9 +117,10 @@ async function backupFile(filePath) {
 }
 
 async function backupCommandsAndDocs() {
+    if (!BACKUP_DIR) BACKUP_DIR = getBackupDirName();
     const spinner = ora('기존 명령어 및 문서 백업 중...').start();
     const backedUpFiles = [];
-
+    await fs.mkdir(BACKUP_DIR, { recursive: true });
     try {
         // Files that will be updated and need backup
         const filesToBackup = [
@@ -101,26 +129,24 @@ async function backupCommandsAndDocs() {
             '.moonklabs/03_SPRINTS/CLAUDE.md',
             '.moonklabs/04_GENERAL_TASKS/CLAUDE.md'
         ];
-
         // Backup CLAUDE.md files
         for (const file of filesToBackup) {
-            const backupPath = await backupFile(file);
+            const backupPath = await backupFile(file, BACKUP_DIR);
             if (backupPath) {
                 backedUpFiles.push(backupPath);
             }
         }
-
         // Backup all command files
         const commandsDir = '.claude/commands/moonklabs';
         const commandsExist = await fs.access(commandsDir).then(() => true).catch(() => false);
         if (commandsExist) {
             try {
-                const commandFiles = await fs.readdir(commandsDir, { recursive: true });
+                const commandFiles = await fs.readdir(commandsDir);
                 for (const file of commandFiles) {
                     const filePath = path.join(commandsDir, file);
                     const stat = await fs.stat(filePath);
-                    if (stat.isFile()) {
-                        const backupPath = await backupFile(filePath);
+                    if (stat.isFile() && file.endsWith('.md')) {
+                        const backupPath = await backupFile(filePath, BACKUP_DIR);
                         if (backupPath) {
                             backedUpFiles.push(backupPath);
                         }
@@ -130,7 +156,6 @@ async function backupCommandsAndDocs() {
                 // Commands directory might be empty or have issues
             }
         }
-
         if (backedUpFiles.length > 0) {
             spinner.succeed(chalk.green(`${backedUpFiles.length}개 파일 백업 완료 (*.bak)`));
         } else {
@@ -162,8 +187,8 @@ async function downloadDirectory(githubPath, localPath, spinner) {
 
 async function installMoonklabs(options = {}) {
     console.log(chalk.blue.bold('\n🎉 Hello Moonklabs에 오신 것을 환영합니다!\n'));
-    console.log(chalk.gray('이 설치 프로그램은 Moonklabs 프로젝트 관리 프레임워크를 설정합니다'));
-    console.log(chalk.gray('Claude Code 프로젝트를 위해.\n'));
+    console.log(chalk.gray('이 설치 프로그램은 Moonklabs AI 프롬프트 프레임워크를 설정합니다'));
+    console.log(chalk.gray('특별히 Claude Code 에 최적화 되어있습니다.\n'));
 
     const hasExisting = await checkExistingInstallation();
 
@@ -297,13 +322,42 @@ async function installMoonklabs(options = {}) {
 }
 
 async function restoreFromBackup(spinner) {
+    if (!BACKUP_DIR) {
+        // 가장 최근 backup 폴더 사용
+        const moonklabsDir = '.moonklabs';
+        const dirs = (await fs.readdir(moonklabsDir)).filter(f => f.startsWith('backup_'));
+        if (dirs.length === 0) {
+            spinner.fail(chalk.red('복원할 백업 폴더가 없습니다.'));
+            return;
+        }
+        dirs.sort();
+        BACKUP_DIR = path.join(moonklabsDir, dirs[dirs.length - 1]);
+    }
     spinner.start(chalk.yellow('백업에서 복원 중... '));
     try {
-        const backupFiles = (await fs.readdir('.')).filter(f => f.endsWith('.bak'));
+        let backupFiles = [];
+        try {
+            backupFiles = (await fs.readdir(BACKUP_DIR)).filter(f => f.endsWith('.bak'));
+        } catch (e) {
+            backupFiles = [];
+        }
         for (const backup of backupFiles) {
-            const originalFile = backup.replace('.bak', '');
+            // 원래 위치 추정: claude-commands-moonklabs-foo.md.bak -> .claude/commands/moonklabs/foo.md
+            let originalFile;
+            if (backup.startsWith('moonklabs-')) {
+                // .moonklabs/ 하위
+                const rel = backup.replace(/-/g, '/').replace('.bak', '');
+                originalFile = '.' + rel;
+            } else if (backup.startsWith('claude-commands-moonklabs-')) {
+                // .claude/commands/moonklabs/ 하위
+                const rel = backup.replace('claude-commands-moonklabs-', '').replace(/-/g, '/').replace('.bak', '');
+                originalFile = path.join('.claude', 'commands', 'moonklabs', rel);
+            } else {
+                // 기타
+                originalFile = backup.replace('.bak', '');
+            }
             try {
-                await fs.rename(backup, originalFile);
+                await fs.rename(path.join(BACKUP_DIR, backup), originalFile);
             } catch (e) {
                 console.warn(chalk.yellow(`'${backup}' 파일을 복원할 수 없습니다. 수동 확인이 필요합니다.`));
             }
