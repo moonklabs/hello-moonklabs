@@ -4,4 +4,7 @@ node_modules/
 *.log
 .moonklabs
 .claude/
+prompts/
+.cursor/
+.windsurf/
 .moonklabs_backup_*/
