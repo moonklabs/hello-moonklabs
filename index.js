@@ -233,6 +233,7 @@ async function installMoonklabs(options = {}) {
             '.moonklabs/04_GENERAL_TASKS',
             '.moonklabs/05_ARCHITECTURE_DECISIONS',
             '.moonklabs/10_STATE_OF_PROJECT',
+            '.moonklabs/98_PROMPTS',
             '.moonklabs/99_TEMPLATES'
         ];
 

@@ -1,6 +1,6 @@
 {
     "name": "hello-moonklabs",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "description": "Installer for the Moonklabs project management framework for AI Tools",
     "main": "index.js",
     "type": "module",
