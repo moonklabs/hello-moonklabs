@@ -254,6 +254,7 @@ async function installMoonklabs(options = {}) {
             // Download templates on fresh install
             try {
                 logWithSpinner(spinner, '템플릿 디렉토리를 다운로드 중...', debugLog);
+                await downloadDirectory(`${GITHUB_CONTENT_PREFIX}/.moonklabs/98_PROMPTS`, '.moonklabs/98_PROMPTS', spinner);
                 await downloadDirectory(`${GITHUB_CONTENT_PREFIX}/.moonklabs/99_TEMPLATES`, '.moonklabs/99_TEMPLATES', spinner);
             } catch (error) {
                 logWithSpinner(spinner, '템플릿 디렉토리를 찾을 수 없어 건너뜁니다...', debugLog);
