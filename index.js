@@ -289,12 +289,12 @@ async function installMoonklabs(options = {}) {
         }
 
         // 1. prompts 폴더 다운로드
-        try {
-            logWithSpinner(spinner, 'prompts 폴더를 다운로드 중...', debugLog);
-            await downloadDirectory(`prompts`, 'prompts', spinner);
-        } catch (error) {
-            logWithSpinner(spinner, 'prompts 폴더를 찾을 수 없어 건너뜁니다...', debugLog);
-        }
+        // try {
+        //     logWithSpinner(spinner, 'prompts 폴더를 다운로드 중...', debugLog);
+        //     await downloadDirectory(`prompts`, 'prompts', spinner);
+        // } catch (error) {
+        //     logWithSpinner(spinner, 'prompts 폴더를 찾을 수 없어 건너뜁니다...', debugLog);
+        // }
 
         // 2. rules/global 폴더 다운로드 (임시 폴더)
         let tmpRulesGlobal = '.moonklabs/_tmp_rules_global';
